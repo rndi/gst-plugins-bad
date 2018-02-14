@@ -2466,6 +2466,13 @@ AG_GST_CHECK_FEATURE(LIBMMS, [mms protocol library], libmms, [
 ])
 AC_SUBST(LIBMMS_LIBS)
 
+dnl *** libsrt ***
+translit(dnm, m, l) AM_CONDITIONAL(USE_SRT, true)
+AG_GST_CHECK_FEATURE(SRT, [srt library], srt, [
+  PKG_CHECK_MODULES(SRT, srt, HAVE_SRT="yes", HAVE_SRT=no)
+  AC_SUBST(SRT_LIBS)
+  AC_SUBST(SRT_CFLAGS)
+])
 
 dnl *** libsrtp ***
 translit(dnm, m, l) AM_CONDITIONAL(USE_SRTP, true)
@@ -3703,6 +3710,7 @@ ext/smoothstreaming/Makefile
 ext/sndfile/Makefile
 ext/soundtouch/Makefile
 ext/spandsp/Makefile
+ext/srt/Makefile
 ext/srtp/Makefile
 ext/teletextdec/Makefile
 ext/gme/Makefile
