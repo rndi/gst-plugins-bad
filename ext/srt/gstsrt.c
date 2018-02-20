@@ -184,7 +184,7 @@ plugin_init (GstPlugin * plugin)
   if (!gst_element_register (plugin, "srtclientsrc", GST_RANK_PRIMARY,
           GST_TYPE_SRT_CLIENT_SRC))
     return FALSE;
-
+#if 0
   if (!gst_element_register (plugin, "srtserversrc", GST_RANK_PRIMARY,
           GST_TYPE_SRT_SERVER_SRC))
     return FALSE;
@@ -196,7 +196,7 @@ plugin_init (GstPlugin * plugin)
   if (!gst_element_register (plugin, "srtserversink", GST_RANK_PRIMARY,
           GST_TYPE_SRT_SERVER_SINK))
     return FALSE;
-
+#endif
   return TRUE;
 }
 
