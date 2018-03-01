@@ -194,6 +194,13 @@ gst_srt_validate_params (const GstElement * elem, const GstSRTParams * params)
             " (0xFF) inclusive."), (NULL));
     ret = FALSE;
   }
+  if (params->overhead_bw > 0 &&
+      (params->overhead_bw < 5 || params->overhead_bw > 100)) {
+    GST_ELEMENT_ERROR (elem, RESOURCE, SETTINGS,
+        ("SRT overhead bandwidth must be between 5%% and"
+            " 100%% inclusive."), (NULL));
+    ret = FALSE;
+  }
   return ret;
 }
 
@@ -820,7 +827,7 @@ gst_srt_create_socket (const GstElement * elem, const GstSRTParams * params)
       goto failed;
     }
 
-    ival = (params->overhead_bw < 0) ? 0 : params->overhead_bw;
+    ival = (params->overhead_bw <= 0) ? 25 : params->overhead_bw;
     if (srt_setsockopt (sock, 0, SRTO_OHEADBW, &ival, sizeof (ival))) {
       GST_ELEMENT_ERROR (elem, LIBRARY, INIT,
           ("SRT setsockopt failed"),

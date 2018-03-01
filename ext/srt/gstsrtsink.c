@@ -56,7 +56,6 @@ GST_DEBUG_CATEGORY (GST_CAT_DEFAULT);
 enum
 {
   PROP_URI = 1,
-  PROP_CAPS,
   PROP_POLL_TIMEOUT,
   PROP_STATS,
 
@@ -102,7 +101,7 @@ enum
 static guint signals[LAST_SIGNAL] = { 0 };
 
 #define gst_srt_sink_parent_class parent_class
-G_DEFINE_ABSTRACT_TYPE_WITH_CODE (GstSRTSink, gst_srt_sink,
+G_DEFINE_TYPE_WITH_CODE (GstSRTSink, gst_srt_sink,
     GST_TYPE_BASE_SINK, G_ADD_PRIVATE (GstSRTSink)
     G_IMPLEMENT_INTERFACE (GST_TYPE_URI_HANDLER, gst_srt_sink_uri_handler_init)
     GST_DEBUG_CATEGORY_INIT (GST_CAT_DEFAULT, "srtsink", 0, "SRT Sink"));
@@ -411,6 +410,7 @@ gst_srt_sink_render (GstBaseSink * sink, GstBuffer * buffer)
             client->sockaddr);
         srt_client_free (client);
         GST_OBJECT_LOCK (sink);
+        GST_DEBUG_OBJECT (self, "client removed");
       } else if (srt_sendmsg (client->sock, (const char *) info.data, info.size,
               -1, 1) <= 0) {
         GST_WARNING_OBJECT (self, "Send failed: %s", srt_getlasterror_str ());
@@ -502,6 +502,10 @@ gst_srt_sink_class_init (GstSRTSinkClass * klass)
   gobject_class->set_property = gst_srt_sink_set_property;
   gobject_class->get_property = gst_srt_sink_get_property;
 
+  properties[PROP_URI] = g_param_spec_string ("uri", "URI",
+      "URI in the form of srt://address:port?key1=val1&key2=val2", NULL,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
   properties[PROP_POLL_TIMEOUT] =
       g_param_spec_int ("poll-timeout", "Poll Timeout",
       "Return poll wait after timeout miliseconds (-1 = infinite)", -1,
@@ -516,6 +520,8 @@ gst_srt_sink_class_init (GstSRTSinkClass * klass)
       G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
 
   g_object_class_install_properties (gobject_class, PROP_LAST, properties);
+
+  gst_srt_install_properties (gobject_class);
 
   /**
    * GstSRTSink::client-added:
@@ -563,10 +569,14 @@ gst_srt_sink_class_init (GstSRTSinkClass * klass)
 static void
 gst_srt_sink_init (GstSRTSink * self)
 {
+  GstSRTSinkPrivate *priv = GST_SRT_SINK_GET_PRIVATE (self);
+
   memset ((gpointer) & self->params, 0, sizeof (self->params));
-  gst_srt_default_params (&self->params, FALSE);
+  gst_srt_default_params (&self->params, TRUE);
 
   self->poll_timeout = SRT_DEFAULT_POLL_TIMEOUT;
+  priv->sock = SRT_INVALID_SOCK;
+  priv->poll_id = -1;
 }
 
 static GstURIType
