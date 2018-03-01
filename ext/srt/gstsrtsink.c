@@ -398,12 +398,13 @@ gst_srt_sink_render (GstBaseSink * sink, GstBuffer * buffer)
   if (self->params.conn_mode == GST_SRT_LISTENER_CONNECTION) {
     clients = priv->clients;
     while (clients != NULL) {
+      SRT_SOCKSTATUS status;
       SRTClient *client = clients->data;
       clients = clients->next;
 
-      if (srt_getsockstate (client->sock != SRTS_CONNECTED)) {
-        GST_WARNING_OBJECT (self, "%s", srt_getlasterror_str ());
-
+      status = srt_getsockstate (client->sock);
+      if (status == SRTS_BROKEN || status == SRTS_CLOSED
+          || status == SRTS_NONEXIST) {
         priv->clients = g_list_remove (priv->clients, client);
         GST_OBJECT_UNLOCK (sink);
         g_signal_emit (self, signals[SIG_CLIENT_REMOVED], 0, client->sock,
@@ -417,7 +418,7 @@ gst_srt_sink_render (GstBaseSink * sink, GstBuffer * buffer)
         continue;
       }
     }
-  } else if (srt_getsockstate (priv->sock == SRTS_CONNECTED)) {
+  } else if (srt_getsockstate (priv->sock) == SRTS_CONNECTED) {
     if (srt_sendmsg (priv->sock, (const char *) info.data, info.size,
             -1, 1) <= 0) {
       GST_WARNING_OBJECT (self, "Send failed: %s", srt_getlasterror_str ());
