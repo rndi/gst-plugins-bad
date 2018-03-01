@@ -246,121 +246,122 @@ gst_srt_init_params_from_uri (const GstElement * elem,
   }
 
   host = gst_uri_get_host (uri);
-  if (host == NULL || !g_strcmp0 (host, "0.0.0.0") == 0)
+  if (host == NULL || !g_strcmp0 (host, "0.0.0.0"))
     params->conn_mode = GST_SRT_LISTENER_CONNECTION;
   else
     params->conn_mode = GST_SRT_CALLER_CONNECTION;
 
   qtable = gst_uri_get_query_table (uri);
-  g_assert (qtable != NULL);
-
-  g_hash_table_iter_init (&qtable_it, qtable);
-  while (g_hash_table_iter_next (&qtable_it, &key, &value)) {
-    if (!g_strcmp0 ((const gchar *) key, "mode")) {
-      if (!g_strcmp0 ((const gchar *) value, "caller"))
-        params->conn_mode = GST_SRT_CALLER_CONNECTION;
-      else if (!g_strcmp0 ((const gchar *) value, "listener"))
-        params->conn_mode = GST_SRT_LISTENER_CONNECTION;
-      else if (!g_strcmp0 ((const gchar *) value, "rendezvous"))
-        params->conn_mode = GST_SRT_RENDEZVOUS_CONNECTION;
-      else {
-        GST_ELEMENT_ERROR (elem, RESOURCE, SETTINGS,
-            ("Unrecognized SRT connection mode"), (NULL));
-        goto out;
+  if (qtable != NULL) {
+    g_hash_table_iter_init (&qtable_it, qtable);
+    while (g_hash_table_iter_next (&qtable_it, &key, &value)) {
+      if (!g_strcmp0 ((const gchar *) key, "mode")) {
+        if (!g_strcmp0 ((const gchar *) value, "caller"))
+          params->conn_mode = GST_SRT_CALLER_CONNECTION;
+        else if (!g_strcmp0 ((const gchar *) value, "listener"))
+          params->conn_mode = GST_SRT_LISTENER_CONNECTION;
+        else if (!g_strcmp0 ((const gchar *) value, "rendezvous"))
+          params->conn_mode = GST_SRT_RENDEZVOUS_CONNECTION;
+        else {
+          GST_ELEMENT_ERROR (elem, RESOURCE, SETTINGS,
+              ("Unrecognized SRT connection mode"), (NULL));
+          goto out;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "latency")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
+                &value64, &error)) {
+          params->latency = (gint) value64;
+        }
+      } else if (key && g_str_has_prefix ((const gchar *) key, "pass")) {
+        params->passphrase = g_strdup ((const gchar *) value);
+      } else if (key && g_str_has_prefix ((const gchar *) key, "key")) {
+        if (!g_strcmp0 ((const gchar *) value, "0"))
+          params->key_length = GST_SRT_NO_KEY;
+        else if (!g_strcmp0 ((const gchar *) value, "128"))
+          params->key_length = GST_SRT_KEY_128_BITS;
+        else if (!g_strcmp0 ((const gchar *) value, "192"))
+          params->key_length = GST_SRT_KEY_192_BITS;
+        else if (!g_strcmp0 ((const gchar *) value, "256"))
+          params->key_length = GST_SRT_KEY_256_BITS;
+        else {
+          GST_ELEMENT_ERROR (elem, RESOURCE, SETTINGS,
+              ("SRT URI key-length missing or invalid value"), (NULL));
+          goto out;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "mss")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, INT_MAX,
+                &value64, &error)) {
+          params->mss = (gint) value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "srt-send")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
+                &value64, &error)) {
+          params->srt_send_buf_sz = (gint) value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "srt-recv")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
+                &value64, &error)) {
+          params->srt_recv_buf_sz = (gint) value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "udp-send")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
+                &value64, &error)) {
+          params->udp_send_buf_sz = (gint) value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "udp-recv")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
+                &value64, &error)) {
+          params->udp_recv_buf_sz = (gint) value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "too-late")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, 1,
+                &value64, &error)) {
+          params->too_late_pkt_drop = (gint) value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "input-rate")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, LONG_MAX,
+                &value64, &error)) {
+          params->input_rate = value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "overhead")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, 5, 100,
+                &value64, &error)) {
+          params->overhead_bw = (gint) value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "maxbw")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, LONG_MAX,
+                &value64, &error)) {
+          params->max_bw = value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "iptos")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, 255,
+                &value64, &error)) {
+          params->iptos = (gint) value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "ipttl")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, 255,
+                &value64, &error)) {
+          params->ipttl = (gint) value64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "remotehost")) {
+        params->remote_host = g_strdup ((const gchar *) value);
+      } else if (!g_strcmp0 ((const gchar *) key, "remoteport")) {
+        if (g_ascii_string_to_unsigned ((const gchar *) value, 10, 1, USHRT_MAX,
+                &uvalue64, &error)) {
+          params->remote_port = (guint16) uvalue64;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "localaddress")) {
+        params->local_address = g_strdup ((const gchar *) value);
+      } else if (!g_strcmp0 ((const gchar *) key, "localport")) {
+        if (g_ascii_string_to_unsigned ((const gchar *) value, 10, 1, USHRT_MAX,
+                &uvalue64, &error)) {
+          params->local_port = (guint16) uvalue64;
+        }
+      } else if (key) {
+        GST_ELEMENT_WARNING (elem, RESOURCE, SETTINGS,
+            ("Unrecognized SRT URI parameter: %s", (const gchar *) key),
+            (NULL));
       }
-    } else if (!g_strcmp0 ((const gchar *) key, "latency")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
-              &value64, &error)) {
-        params->latency = (gint) value64;
-      }
-    } else if (key && !g_str_has_prefix ((const gchar *) key, "pass")) {
-      params->passphrase = g_strdup ((const gchar *) value);
-    } else if (key && !g_str_has_prefix ((const gchar *) key, "key")) {
-      if (!g_strcmp0 ((const gchar *) value, "0"))
-        params->key_length = GST_SRT_NO_KEY;
-      else if (!g_strcmp0 ((const gchar *) value, "128"))
-        params->key_length = GST_SRT_KEY_128_BITS;
-      else if (!g_strcmp0 ((const gchar *) value, "192"))
-        params->key_length = GST_SRT_KEY_192_BITS;
-      else if (!g_strcmp0 ((const gchar *) value, "256"))
-        params->key_length = GST_SRT_KEY_256_BITS;
-      else {
-        GST_ELEMENT_ERROR (elem, RESOURCE, SETTINGS,
-            ("SRT URI key-length missing or invalid value"), (NULL));
-        goto out;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "mss")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, INT_MAX,
-              &value64, &error)) {
-        params->mss = (gint) value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "srt-send")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
-              &value64, &error)) {
-        params->srt_send_buf_sz = (gint) value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "srt-recv")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
-              &value64, &error)) {
-        params->srt_recv_buf_sz = (gint) value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "udp-send")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
-              &value64, &error)) {
-        params->udp_send_buf_sz = (gint) value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "udp-recv")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
-              &value64, &error)) {
-        params->udp_recv_buf_sz = (gint) value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "too-late")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, 1,
-              &value64, &error)) {
-        params->too_late_pkt_drop = (gint) value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "input-rate")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, LONG_MAX,
-              &value64, &error)) {
-        params->input_rate = value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "overhead")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, 5, 100,
-              &value64, &error)) {
-        params->overhead_bw = (gint) value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "maxbw")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, LONG_MAX,
-              &value64, &error)) {
-        params->max_bw = value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "iptos")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, 255,
-              &value64, &error)) {
-        params->iptos = (gint) value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "ipttl")) {
-      if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, 255,
-              &value64, &error)) {
-        params->ipttl = (gint) value64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "remotehost")) {
-      params->remote_host = g_strdup ((const gchar *) value);
-    } else if (!g_strcmp0 ((const gchar *) key, "remoteport")) {
-      if (g_ascii_string_to_unsigned ((const gchar *) value, 10, 1, USHRT_MAX,
-              &uvalue64, &error)) {
-        params->remote_port = (guint16) uvalue64;
-      }
-    } else if (!g_strcmp0 ((const gchar *) key, "localaddress")) {
-      params->local_address = g_strdup ((const gchar *) value);
-    } else if (!g_strcmp0 ((const gchar *) key, "localport")) {
-      if (g_ascii_string_to_unsigned ((const gchar *) value, 10, 1, USHRT_MAX,
-              &uvalue64, &error)) {
-        params->local_port = (guint16) uvalue64;
-      }
-    } else if (key) {
-      GST_ELEMENT_WARNING (elem, RESOURCE, SETTINGS,
-          ("Unrecognized SRT URI parameter: %s", (const gchar *) key), (NULL));
     }
   }
 
@@ -651,7 +652,7 @@ static SRTSOCKET
 gst_srt_create_socket (const GstElement * elem, const GstSRTParams * params)
 {
   SRTSOCKET sock = SRT_INVALID_SOCK;
-  gint ival;
+  gint ival, mss;
 
   if (!gst_srt_validate_params (elem, params))
     goto failed;
@@ -749,8 +750,8 @@ gst_srt_create_socket (const GstElement * elem, const GstSRTParams * params)
     goto failed;
   }
 
-  ival = (params->mss <= 0) ? 1500 : params->mss;
-  if (srt_setsockopt (sock, 0, SRTO_MSS, &ival, sizeof (ival))) {
+  mss = (params->mss <= 0) ? 1500 : params->mss;
+  if (srt_setsockopt (sock, 0, SRTO_MSS, &mss, sizeof (ival))) {
     GST_ELEMENT_ERROR (elem, LIBRARY, INIT,
         ("SRT setsockopt failed"),
         ("failed to set SRTO_MSS (reason: %s)", srt_getlasterror_str ()));
@@ -758,7 +759,7 @@ gst_srt_create_socket (const GstElement * elem, const GstSRTParams * params)
   }
 
   ival = (params->srt_send_buf_sz <= 0) ?
-      8192 * (params->mss - 28) : params->srt_send_buf_sz;
+      8192 * (mss - 28) : params->srt_send_buf_sz;
   if (srt_setsockopt (sock, 0, SRTO_SNDBUF, &ival, sizeof (ival))) {
     GST_ELEMENT_ERROR (elem, LIBRARY, INIT,
         ("SRT setsockopt failed"),
@@ -767,7 +768,7 @@ gst_srt_create_socket (const GstElement * elem, const GstSRTParams * params)
   }
 
   ival = (params->srt_recv_buf_sz <= 0) ?
-      8192 * (params->mss - 28) : params->srt_recv_buf_sz;
+      8192 * (mss - 28) : params->srt_recv_buf_sz;
   if (srt_setsockopt (sock, 0, SRTO_RCVBUF, &ival, sizeof (ival))) {
     GST_ELEMENT_ERROR (elem, LIBRARY, INIT,
         ("SRT setsockopt failed"),
@@ -784,8 +785,7 @@ gst_srt_create_socket (const GstElement * elem, const GstSRTParams * params)
     goto failed;
   }
 
-  ival = (params->udp_recv_buf_sz <= 0) ?
-      8192 * params->mss : params->udp_recv_buf_sz;
+  ival = (params->udp_recv_buf_sz <= 0) ? 8192 * mss : params->udp_recv_buf_sz;
   if (srt_setsockopt (sock, 0, SRTO_UDP_RCVBUF, &ival, sizeof (ival))) {
     GST_ELEMENT_ERROR (elem, LIBRARY, INIT,
         ("SRT setsockopt failed"),
@@ -868,6 +868,8 @@ gst_srt_activate_socket (const GstElement * elem,
 {
   guint16 local_port;
   GError *error = NULL;
+  const char *local_address =
+      (params->local_address != NULL) ? params->local_address : "0.0.0.0";
 
   if (!gst_srt_validate_params (elem, params))
     goto failed;
@@ -885,8 +887,7 @@ gst_srt_activate_socket (const GstElement * elem,
     gsize sock_addr_len;
 
     gsock_addr =
-        g_inet_socket_address_new_from_string (params->local_address,
-        local_port);
+        g_inet_socket_address_new_from_string (local_address, local_port);
 
     if (gsock_addr == NULL) {
       GST_ELEMENT_ERROR (elem, RESOURCE, OPEN_READ_WRITE,
@@ -906,9 +907,10 @@ gst_srt_activate_socket (const GstElement * elem,
     if (!g_socket_address_to_native (gsock_addr, sock_addr,
             sock_addr_len, &error)) {
       GST_ELEMENT_ERROR (elem, RESOURCE, OPEN_READ_WRITE,
-          ("Local bind failed"),
-          ("Can't parse bind address to sockaddr: %s", error->message));
+          ("to native sockaddr failed"),
+          ("Can't parse local address to sockaddr: %s", error->message));
       g_clear_object (&gsock_addr);
+      g_error_free (error);
       goto failed;
     }
     g_clear_object (&gsock_addr);
@@ -917,7 +919,7 @@ gst_srt_activate_socket (const GstElement * elem,
       GST_ELEMENT_ERROR (elem, RESOURCE, OPEN_READ_WRITE,
           ("Can't bind to address"),
           ("Can't bind to %s:%d (reason: %s)",
-              params->local_address, local_port, srt_getlasterror_str ()));
+              local_address, local_port, srt_getlasterror_str ()));
       goto failed;
     }
   }
@@ -947,6 +949,16 @@ gst_srt_activate_socket (const GstElement * elem,
 
     sock_addr_len = g_socket_address_get_native_size (gsock_addr);
     sock_addr = g_alloca (sock_addr_len);
+    if (!g_socket_address_to_native (gsock_addr, sock_addr, sock_addr_len,
+            &error)) {
+      GST_ELEMENT_ERROR (elem, RESOURCE, OPEN_READ,
+          ("to native sockaddr failed"),
+          ("Can't parse remote address to sockaddr: %s", error->message));
+      g_clear_object (&gsock_addr);
+      g_error_free (error);
+      goto failed;
+    }
+
     if (srt_connect (sock, sock_addr, sock_addr_len) == SRT_ERROR) {
       GST_ELEMENT_ERROR (elem, RESOURCE, OPEN_READ_WRITE,
           ("Connect failed"),
@@ -966,12 +978,11 @@ gst_srt_activate_socket (const GstElement * elem,
       GST_ELEMENT_ERROR (elem, RESOURCE, OPEN_READ_WRITE,
           ("Listen failed"),
           ("Could't starting listen on %s:%d (reason: %s)",
-              params->local_address, local_port, srt_getlasterror_str ()));
+              local_address, local_port, srt_getlasterror_str ()));
     }
 
     GST_LOG_OBJECT (elem,
-        "Scheduled connect to remote SRT endpoint %s:%d",
-        params->local_address, local_port);
+        "Listening on SRT endpoint %s:%d", local_address, local_port);
   }
 
   return TRUE;
