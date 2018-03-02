@@ -428,7 +428,7 @@ gst_srt_sink_render (GstBaseSink * sink, GstBuffer * buffer)
 
   gst_buffer_unmap (buffer, &info);
 
-  return TRUE;
+  return GST_FLOW_OK;
 }
 
 static gboolean
