@@ -31,7 +31,7 @@
 #define GST_CAT_DEFAULT gst_debug_srt
 GST_DEBUG_CATEGORY (GST_CAT_DEFAULT);
 
-#if GLIB_CHECK_VERSION(2, 54, 0)
+#if !GLIB_CHECK_VERSION(2, 54, 0)
 /* gboolean g_ascii_string_to_signed() and g_ascii_string_to_unsigned()
  * have been borrowed from glib 2.54 as-is minus the formatting
  */
