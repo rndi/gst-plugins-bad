@@ -31,7 +31,7 @@
 #define GST_CAT_DEFAULT gst_debug_srt
 GST_DEBUG_CATEGORY (GST_CAT_DEFAULT);
 
-#if !GLIB_CHECK_VERSION(2, 54, 0)
+#if GLIB_CHECK_VERSION(2, 54, 0)
 /* gboolean g_ascii_string_to_signed() and g_ascii_string_to_unsigned()
  * have been borrowed from glib 2.54 as-is minus the formatting
  */
@@ -46,6 +46,15 @@ str_has_hex_prefix (const gchar * str)
 {
   return str[0] == '0' && g_ascii_tolower (str[1]) == 'x';
 }
+
+typedef enum
+{
+  G_NUMBER_PARSER_ERROR_INVALID,
+  G_NUMBER_PARSER_ERROR_OUT_OF_BOUNDS,
+} GNumberParserError;
+
+#define G_NUMBER_PARSER_ERROR (g_number_parser_error_quark ())
+static GQuark g_number_parser_error_quark (void);
 
 static gboolean
 g_ascii_string_to_signed (const gchar * str, guint base,
