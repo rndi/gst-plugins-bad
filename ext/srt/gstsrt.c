@@ -54,7 +54,11 @@ typedef enum
 } GNumberParserError;
 
 #define G_NUMBER_PARSER_ERROR (g_number_parser_error_quark ())
-static GQuark g_number_parser_error_quark (void);
+static GQuark
+g_number_parser_error_quark (void)
+{
+  return g_quark_from_static_string ("number-parser-error-quark");
+}
 
 static gboolean
 g_ascii_string_to_signed (const gchar * str, guint base,
