@@ -210,6 +210,7 @@ gst_srt_connection_mode_get_type (void)
 
   if (!srt_connection_mode_type) {
     static GEnumValue pattern_types[] = {
+      {GST_SRT_NO_CONNECTION, "None", "none"},
       {GST_SRT_CALLER_CONNECTION, "Caller Mode", "caller"},
       {GST_SRT_LISTENER_CONNECTION, "Listener Mode)", "listener"},
       {GST_SRT_RENDEZVOUS_CONNECTION, "Rendezvous Mode", "rendezvous"},
@@ -357,7 +358,6 @@ gst_srt_init_params_from_uri (const GstElement * elem,
 
   guint16 port;
   const gchar *host;
-  gchar *path;
   GHashTable *qtable = NULL;
   GHashTableIter qtable_it;
   gpointer key, value;
@@ -380,13 +380,6 @@ gst_srt_init_params_from_uri (const GstElement * elem,
   if (gst_uri_get_userinfo (uri) != NULL) {
     GST_ELEMENT_ERROR (elem, RESOURCE, SETTINGS,
         ("SRT URI doesn't support user/password"), (NULL));
-    goto out;
-  }
-
-  path = gst_uri_get_path (uri);
-  if (path != NULL) {
-    GST_ELEMENT_ERROR (elem, RESOURCE, SETTINGS,
-        ("SRT URI doesn't support a path"), (NULL));
     goto out;
   }
 
@@ -591,22 +584,22 @@ gst_srt_install_properties (GObjectClass * gobject_class)
   g_object_class_install_property (gobject_class, PROP_SRT_SEND_BUF_SZ,
       g_param_spec_int ("srt-send", "SRT send buf",
           "SRT Send buffer size",
-          1, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          0, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_SRT_RECV_BUF_SZ,
       g_param_spec_int ("srt-recv", "SRT receive buf",
           "SRT Receive buffer size",
-          1, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          0, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_UDP_SEND_BUF_SZ,
       g_param_spec_int ("udp-send", "UDP send buf",
           "UDP Send buffer size",
-          1, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          0, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_UDP_RECV_BUF_SZ,
       g_param_spec_int ("udp-recv", "UDP receive buf",
           "UDP Receive buffer size",
-          1, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          0, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TOO_LATE_PKT_DROP,
       g_param_spec_int ("too-late", "Too-late packet drop",
@@ -621,12 +614,12 @@ gst_srt_install_properties (GObjectClass * gobject_class)
   g_object_class_install_property (gobject_class, PROP_OVERHEAD_BW,
       g_param_spec_int ("overhead", "Overhead bw",
           "Overhead BW (used only if input-rate is used and maxbw == 0)",
-          5, 1, 100, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          -1, 100, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MAXBW_BW,
-      g_param_spec_uint64 ("maxbw", "Maximum bandwidth",
+      g_param_spec_int64 ("maxbw", "Maximum bandwidth",
           "Maximum bandwidth",
-          -1, G_MAXINT64, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          -2, G_MAXINT64, -2, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_IPTOS,
       g_param_spec_int ("iptos", "IP TOS",
