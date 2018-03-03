@@ -604,8 +604,8 @@ gst_srt_install_properties (GObjectClass * gobject_class)
           1, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_UDP_RECV_BUF_SZ,
-      g_param_spec_int ("srt-recv", "UDP receive buf",
-          "SRT Receive buffer size",
+      g_param_spec_int ("udp-recv", "UDP receive buf",
+          "UDP Receive buffer size",
           1, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_TOO_LATE_PKT_DROP,
