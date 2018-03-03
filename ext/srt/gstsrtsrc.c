@@ -331,10 +331,11 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
             "Error receiving data on SRT socket: %s", srt_getlasterror_str ());
         continue;
       }
-      GST_BUFFER_PTS (outbuf) =
-          gst_clock_get_time (GST_ELEMENT_CLOCK (src)) -
-          GST_ELEMENT_CAST (src)->base_time;
-
+      if ((FALSE)) {
+        GST_BUFFER_PTS (outbuf) =
+            gst_clock_get_time (GST_ELEMENT_CLOCK (src)) -
+            GST_ELEMENT_CAST (src)->base_time;
+      }
       gst_buffer_resize (outbuf, 0, recv_len);
 
       return GST_FLOW_OK;
