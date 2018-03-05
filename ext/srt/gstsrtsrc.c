@@ -57,6 +57,7 @@ struct _GstSRTSrcPrivate
 {
   SRTSOCKET sock;
   gint poll_id;
+  guint64 n_frames;
 
   gboolean cancelled;
 };
@@ -281,6 +282,8 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
         priv->sock = SRT_INVALID_SOCK;
       }
 
+      priv->n_frames = 0;
+
       sock = gst_srt_start_socket (GST_ELEMENT_CAST (self), &self->params);
       if (sock == SRT_INVALID_SOCK) {
         GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
@@ -338,6 +341,13 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
       }
       gst_buffer_resize (outbuf, 0, recv_len);
 
+      if (priv->n_frames == 0) {
+        GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_DISCONT);
+      }
+
+      if (++priv->n_frames == G_MAXUINT64)
+        priv->n_frames = 1;
+
       return GST_FLOW_OK;
     } else if (status == SRTS_LISTENING) {
       SRTSOCKET nsock;
@@ -365,6 +375,7 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
       srt_epoll_remove_usock (pollid, sock);
       srt_close (sock);
       priv->sock = nsock;
+      priv->n_frames = 0;
 
       GST_LOG_OBJECT (self, "Listener connected to a source");
     }
@@ -442,6 +453,16 @@ gst_srt_src_init (GstSRTSrc * self)
   self->poll_timeout = SRT_DEFAULT_POLL_TIMEOUT;
   priv->sock = SRT_INVALID_SOCK;
   priv->poll_id = -1;
+  priv->n_frames = 0;
+
+  /* configure basesrc to be a live source */
+  gst_base_src_set_live (GST_BASE_SRC (self), TRUE);
+  /* make basesrc output a segment in time */
+  gst_base_src_set_format (GST_BASE_SRC (self), GST_FORMAT_TIME);
+  /* make basesrc set timestamps on outgoing buffers based on the running_time
+   * when they were captured */
+  gst_base_src_set_do_timestamp (GST_BASE_SRC (self), TRUE);
+
 }
 
 static GstURIType
