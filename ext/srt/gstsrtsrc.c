@@ -58,6 +58,7 @@ struct _GstSRTSrcPrivate
   SRTSOCKET sock;
   gint poll_id;
   guint64 n_frames;
+  gint n_reconnects;
 
   gboolean cancelled;
 };
@@ -70,6 +71,7 @@ enum
   PROP_URI = 1,
   PROP_CAPS,
   PROP_POLL_TIMEOUT,
+  PROP_MAX_RECONNECTS,
 
   /*< private > */
   PROP_LAST
@@ -110,6 +112,9 @@ gst_srt_src_get_property (GObject * object,
     case PROP_POLL_TIMEOUT:
       g_value_set_int (value, self->poll_timeout);
       break;
+    case PROP_MAX_RECONNECTS:
+      g_value_set_int (value, self->max_reconnects);
+      break;
     default:
       if (!gst_srt_get_property (&self->params, object, prop_id, value)) {
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
@@ -137,6 +142,9 @@ gst_srt_src_set_property (GObject * object,
       break;
     case PROP_POLL_TIMEOUT:
       self->poll_timeout = g_value_get_int (value);
+      break;
+    case PROP_MAX_RECONNECTS:
+      self->max_reconnects = g_value_get_int (value);
       break;
     default:
       if (!gst_srt_set_property (&self->params, object, prop_id, value)) {
@@ -294,7 +302,17 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
         srt_close (sock);
         priv->sock = SRT_INVALID_SOCK;
 
-        GST_LOG_OBJECT (self, "SRT source has disconnected");
+        if (self->max_reconnects >= 0 &&
+            ++(priv->n_reconnects) > self->max_reconnects) {
+          GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
+              ("Exceeded maximum re-connection attempts (%d/%d)",
+                  priv->n_reconnects, self->max_reconnects), (NULL));
+          return GST_FLOW_EOS;
+        }
+
+        if (priv->n_frames != 0) {
+          GST_LOG_OBJECT (self, "SRT source has disconnected");
+        }
       }
 
       priv->n_frames = 0;
@@ -360,6 +378,10 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
       if (++priv->n_frames == G_MAXUINT64)
         priv->n_frames = 1;
 
+      // Reset re-connect counter since we only counting
+      // consecutive failing attempts
+      priv->n_reconnects = 0;
+
       return GST_FLOW_OK;
     } else if (status == SRTS_LISTENING) {
       SRTSOCKET nsock;
@@ -387,8 +409,8 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
       srt_epoll_remove_usock (pollid, sock);
       srt_close (sock);
       priv->sock = nsock;
-      priv->n_frames = 0;
 
+      priv->n_frames = 0;
       GST_LOG_OBJECT (self, "SRT listener connected");
     }
   }
@@ -433,6 +455,12 @@ gst_srt_src_class_init (GstSRTSrcClass * klass)
       -1, G_MAXINT32, SRT_DEFAULT_POLL_TIMEOUT,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+  properties[PROP_MAX_RECONNECTS] =
+      g_param_spec_int ("max-reconnects", "Max re-connection attempts",
+      "Maximum consecutive re-connection attempts (-1 = infinite)",
+      -1, G_MAXINT32, SRT_DEFAULT_MAX_RECONNECTS,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (gobject_class, PROP_LAST, properties);
 
   gst_srt_install_properties (gobject_class);
@@ -463,6 +491,7 @@ gst_srt_src_init (GstSRTSrc * self)
   gst_srt_default_params (&self->params, FALSE);
 
   self->poll_timeout = SRT_DEFAULT_POLL_TIMEOUT;
+  self->max_reconnects = SRT_DEFAULT_MAX_RECONNECTS;
   priv->sock = SRT_INVALID_SOCK;
   priv->poll_id = -1;
   priv->n_frames = 0;
