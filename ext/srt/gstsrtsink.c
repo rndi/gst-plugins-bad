@@ -336,6 +336,13 @@ gst_srt_sink_start (GstBaseSink * sink)
   if (!gst_srt_validate_params (GST_ELEMENT_CAST (sink), &self->params))
     return FALSE;
 
+  if (srt_startup () != 0) {
+    GST_ELEMENT_ERROR (self, LIBRARY, INIT, (NULL),
+        ("failed to initialize SRT library (reason: %s)",
+            srt_getlasterror_str ()));
+    return FALSE;
+  }
+
   priv->poll_id = srt_epoll_create ();
   if (priv->poll_id < 0) {
     GST_ELEMENT_ERROR (self, LIBRARY, INIT, (NULL),
@@ -467,6 +474,8 @@ gst_srt_sink_stop (GstBaseSink * sink)
   srt_epoll_release (priv->poll_id);
   priv->poll_id = -1;
   priv->cancelled = FALSE;
+
+  srt_cleanup ();
 
   return TRUE;
 }

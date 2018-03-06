@@ -201,6 +201,17 @@ gst_srt_src_start (GstBaseSrc * src)
   if (!gst_srt_validate_params (GST_ELEMENT_CAST (src), &self->params))
     return FALSE;
 
+  if (srt_startup () != 0) {
+    GST_ELEMENT_ERROR (self, LIBRARY, INIT, (NULL),
+        ("failed to initialize SRT library (reason: %s)",
+            srt_getlasterror_str ()));
+    return FALSE;
+  }
+
+  if ((FALSE)) {
+    srt_setloglevel (LOG_DEBUG);
+  }
+
   priv->poll_id = srt_epoll_create ();
   if (priv->poll_id < 0) {
     GST_ELEMENT_ERROR (self, LIBRARY, INIT, (NULL),
@@ -232,6 +243,8 @@ gst_srt_src_stop (GstBaseSrc * src)
   }
 
   priv->cancelled = FALSE;
+
+  srt_cleanup ();
 
   return TRUE;
 }
@@ -280,6 +293,8 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
         srt_epoll_remove_usock (pollid, sock);
         srt_close (sock);
         priv->sock = SRT_INVALID_SOCK;
+
+        GST_LOG_OBJECT (self, "SRT source has disconnected");
       }
 
       priv->n_frames = 0;
@@ -334,15 +349,12 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
             "Error receiving data on SRT socket: %s", srt_getlasterror_str ());
         continue;
       }
-      if ((FALSE)) {
-        GST_BUFFER_PTS (outbuf) =
-            gst_clock_get_time (GST_ELEMENT_CLOCK (src)) -
-            GST_ELEMENT_CAST (src)->base_time;
-      }
+
       gst_buffer_resize (outbuf, 0, recv_len);
 
       if (priv->n_frames == 0) {
         GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_DISCONT);
+        GST_LOG_OBJECT (self, "SRT source is connected");
       }
 
       if (++priv->n_frames == G_MAXUINT64)
@@ -377,7 +389,7 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
       priv->sock = nsock;
       priv->n_frames = 0;
 
-      GST_LOG_OBJECT (self, "Listener connected to a source");
+      GST_LOG_OBJECT (self, "SRT listener connected");
     }
   }
 
