@@ -116,7 +116,8 @@ gst_srt_src_get_property (GObject * object,
       g_value_set_int (value, self->max_reconnects);
       break;
     default:
-      if (!gst_srt_get_property (&self->params, object, prop_id, value)) {
+      if (!gst_srt_get_property (&self->params, object, prop_id, value,
+              PROP_LAST - 1)) {
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       }
       break;
@@ -147,7 +148,8 @@ gst_srt_src_set_property (GObject * object,
       self->max_reconnects = g_value_get_int (value);
       break;
     default:
-      if (!gst_srt_set_property (&self->params, object, prop_id, value)) {
+      if (!gst_srt_set_property (&self->params, object, prop_id, value,
+              PROP_LAST - 1)) {
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       }
       break;
@@ -473,7 +475,7 @@ gst_srt_src_class_init (GstSRTSrcClass * klass)
 
   g_object_class_install_properties (gobject_class, PROP_LAST, properties);
 
-  gst_srt_install_properties (gobject_class);
+  gst_srt_install_properties (gobject_class, PROP_LAST - 1);
 
   gstbasesrc_class->get_caps = GST_DEBUG_FUNCPTR (gst_srt_src_get_caps);
 

@@ -88,11 +88,11 @@ gboolean gst_srt_init_params_from_uri(const GstElement * elem,
 gboolean gst_srt_validate_params (const GstElement * elem,
     const GstSRTParams * params);
 
-void gst_srt_install_properties(GObjectClass * gobject_class);
+void gst_srt_install_properties(GObjectClass * gobject_class, gint offset);
 gboolean gst_srt_get_property(const GstSRTParams * params,
-    const GObject * object, guint prop_id, GValue * value);
+    const GObject * object, guint prop_id, GValue * value, gint offset);
 gboolean gst_srt_set_property (GstSRTParams * params,
-    const GObject * object, guint prop_id, const GValue * value);
+    const GObject * object, guint prop_id, const GValue * value, gint offset);
 SRTSOCKET gst_srt_start_socket (const GstElement * elem,
     const GstSRTParams * params);
 gsize gst_srt_send (GstElement * elem, const SRTSOCKET sock,

@@ -176,6 +176,7 @@ g_ascii_string_to_unsigned (const gchar * str, guint base,
 }
 #endif
 
+// will be shifted with offset
 enum
 {
   PROP_MODE = 1,
@@ -550,93 +551,94 @@ out:
 }
 
 void
-gst_srt_install_properties (GObjectClass * gobject_class)
+gst_srt_install_properties (GObjectClass * gobject_class, gint offset)
 {
   g_assert (gobject_class != NULL);
 
-  g_object_class_install_property (gobject_class, PROP_MODE,
+  g_object_class_install_property (gobject_class, PROP_MODE + offset,
       g_param_spec_enum ("mode", "Mode",
           "Connection mode {caller,listener,rendezvous}",
           GST_TYPE_SRT_CONNECTION_MODE,
           GST_SRT_NO_CONNECTION, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_LATENCY,
+  g_object_class_install_property (gobject_class, PROP_LATENCY + offset,
       g_param_spec_int ("latency", "latency",
           "Minimum latency (milliseconds)",
           -1, G_MAXINT32, SRT_DEFAULT_LATENCY,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_PASSPHRASE,
+  g_object_class_install_property (gobject_class, PROP_PASSPHRASE + offset,
       g_param_spec_string ("passphrase", "Passphrase",
           "The password for the encrypted transmission", NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_KEY_LENGTH,
+  g_object_class_install_property (gobject_class, PROP_KEY_LENGTH + offset,
       g_param_spec_enum ("key-length", "key length",
           "Crypto key length in bits {128,192,256}", GST_TYPE_SRT_KEY_LENGTH,
           SRT_DEFAULT_KEY_LENGTH, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_MSS,
+  g_object_class_install_property (gobject_class, PROP_MSS + offset,
       g_param_spec_int ("mss", "MSS",
           "Maximum Segment Size",
           0, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_SRT_SEND_BUF_SZ,
+  g_object_class_install_property (gobject_class, PROP_SRT_SEND_BUF_SZ + offset,
       g_param_spec_int ("srt-send", "SRT send buf",
           "SRT Send buffer size",
           0, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_SRT_RECV_BUF_SZ,
+  g_object_class_install_property (gobject_class, PROP_SRT_RECV_BUF_SZ + offset,
       g_param_spec_int ("srt-recv", "SRT receive buf",
           "SRT Receive buffer size",
           0, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_UDP_SEND_BUF_SZ,
+  g_object_class_install_property (gobject_class, PROP_UDP_SEND_BUF_SZ + offset,
       g_param_spec_int ("udp-send", "UDP send buf",
           "UDP Send buffer size",
           0, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_UDP_RECV_BUF_SZ,
+  g_object_class_install_property (gobject_class, PROP_UDP_RECV_BUF_SZ + offset,
       g_param_spec_int ("udp-recv", "UDP receive buf",
           "UDP Receive buffer size",
           0, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_TOO_LATE_PKT_DROP,
+  g_object_class_install_property (gobject_class,
+      PROP_TOO_LATE_PKT_DROP + offset,
       g_param_spec_int ("too-late", "Too-late packet drop",
           "Drop packets that are too late",
           -1, 1, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_INPUT_RATE,
+  g_object_class_install_property (gobject_class, PROP_INPUT_RATE + offset,
       g_param_spec_uint64 ("input-rate", "Input rate",
           "Maximum BW with possible overhead",
           -1, G_MAXUINT64, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_OVERHEAD_BW,
+  g_object_class_install_property (gobject_class, PROP_OVERHEAD_BW + offset,
       g_param_spec_int ("overhead", "Overhead bw",
           "Overhead BW (used only if input-rate is used and maxbw == 0)",
           -1, 100, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_MAXBW_BW,
+  g_object_class_install_property (gobject_class, PROP_MAXBW_BW + offset,
       g_param_spec_int64 ("maxbw", "Maximum bandwidth",
           "Maximum bandwidth",
           -2, G_MAXINT64, -2, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_IPTOS,
+  g_object_class_install_property (gobject_class, PROP_IPTOS + offset,
       g_param_spec_int ("iptos", "IP TOS",
           "IP type of service",
           -1, 255, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_IPTTL,
+  g_object_class_install_property (gobject_class, PROP_IPTTL + offset,
       g_param_spec_int ("ipttl", "IP TTL",
           "IP time to live",
           -1, 255, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_LOCAL_ADDRESS,
+  g_object_class_install_property (gobject_class, PROP_LOCAL_ADDRESS + offset,
       g_param_spec_string ("localaddress", "Local Address",
           "Address to bind socket to", NULL,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
-  g_object_class_install_property (gobject_class, PROP_LOCAL_PORT,
+  g_object_class_install_property (gobject_class, PROP_LOCAL_PORT + offset,
       g_param_spec_int ("localport", "Local Port",
           "Port to bind socket to (Ignored in rendez-vous mode)",
           0, G_MAXUINT16, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
@@ -644,7 +646,7 @@ gst_srt_install_properties (GObjectClass * gobject_class)
 
 gboolean
 gst_srt_get_property (const GstSRTParams * params,
-    const GObject * object, guint prop_id, GValue * value)
+    const GObject * object, guint prop_id, GValue * value, gint offset)
 {
   gboolean res = TRUE;
 
@@ -652,7 +654,7 @@ gst_srt_get_property (const GstSRTParams * params,
   g_assert (object != NULL);
   g_assert (value != NULL);
 
-  switch (prop_id) {
+  switch (prop_id - offset) {
     case PROP_MODE:
       g_value_set_enum (value, params->conn_mode);
       break;
@@ -720,7 +722,7 @@ gst_srt_get_property (const GstSRTParams * params,
 
 gboolean
 gst_srt_set_property (GstSRTParams * params,
-    const GObject * object, guint prop_id, const GValue * value)
+    const GObject * object, guint prop_id, const GValue * value, gint offset)
 {
   gboolean res = TRUE;
 
@@ -728,7 +730,7 @@ gst_srt_set_property (GstSRTParams * params,
   g_assert (object != NULL);
   g_assert (value != NULL);
 
-  switch (prop_id) {
+  switch (prop_id - offset) {
     case PROP_MODE:
       params->conn_mode = g_value_get_enum (value);
       break;

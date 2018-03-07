@@ -179,7 +179,8 @@ gst_srt_sink_get_property (GObject * object,
       break;
     }
     default:
-      if (!gst_srt_get_property (&self->params, object, prop_id, value)) {
+      if (!gst_srt_get_property (&self->params, object, prop_id, value,
+              PROP_LAST - 1)) {
         G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       }
       break;
@@ -201,7 +202,10 @@ gst_srt_sink_set_property (GObject * object,
       self->poll_timeout = g_value_get_int (value);
       break;
     default:
-      G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      if (!gst_srt_set_property (&self->params, object, prop_id, value,
+              PROP_LAST - 1)) {
+        G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
+      }
       break;
   }
 }
@@ -531,7 +535,7 @@ gst_srt_sink_class_init (GstSRTSinkClass * klass)
 
   g_object_class_install_properties (gobject_class, PROP_LAST, properties);
 
-  gst_srt_install_properties (gobject_class);
+  gst_srt_install_properties (gobject_class, PROP_LAST - 1);
 
   /**
    * GstSRTSink::client-added:
