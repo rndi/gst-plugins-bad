@@ -350,7 +350,7 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
     status = srt_getsockstate (sock);
     if (status == SRTS_CONNECTED) {
       GstMapInfo info;
-      gint recv_len;
+      gsize bufsize, recvlen;
 
       if (!gst_buffer_map (outbuf, &info, GST_MAP_WRITE)) {
         GST_ELEMENT_ERROR (self, RESOURCE, WRITE,
@@ -358,17 +358,27 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
         return GST_FLOW_ERROR;
       }
 
-      recv_len = srt_recvmsg (sock, (char *) info.data,
-          gst_buffer_get_size (outbuf));
+      bufsize = gst_buffer_get_size (outbuf);
+      for (recvlen = 0; recvlen < bufsize;) {
+        gint ret;
+
+        ret = srt_recvmsg (sock, (char *) (info.data + recvlen),
+            bufsize - recvlen);
+
+        if (ret <= 0)
+          break;
+
+        recvlen += ret;
+      }
       gst_buffer_unmap (outbuf, &info);
 
-      if (recv_len <= 0) {
+      if (recvlen == 0) {
         GST_WARNING_OBJECT (self,
             "Error receiving data on SRT socket: %s", srt_getlasterror_str ());
         continue;
       }
 
-      gst_buffer_resize (outbuf, 0, recv_len);
+      gst_buffer_resize (outbuf, 0, recvlen);
 
       if (priv->n_frames == 0) {
         GST_BUFFER_FLAG_SET (outbuf, GST_BUFFER_FLAG_DISCONT);
@@ -504,6 +514,7 @@ gst_srt_src_init (GstSRTSrc * self)
    * when they were captured */
   gst_base_src_set_do_timestamp (GST_BASE_SRC (self), TRUE);
 
+  gst_base_src_set_blocksize (GST_BASE_SRC (self), 1316 * 10);
 }
 
 static GstURIType
