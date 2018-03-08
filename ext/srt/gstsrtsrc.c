@@ -72,7 +72,7 @@ enum
   PROP_URI = 1,
   PROP_CAPS,
   PROP_POLL_TIMEOUT,
-  PROP_MAX_CONNECT_ATTEMPTS,
+  PROP_MAX_CONNECT_RETRIES,
   PROP_RECONNECT,
 
   /*< private > */
@@ -114,8 +114,8 @@ gst_srt_src_get_property (GObject * object,
     case PROP_POLL_TIMEOUT:
       g_value_set_int (value, self->poll_timeout);
       break;
-    case PROP_MAX_CONNECT_ATTEMPTS:
-      g_value_set_int (value, self->max_connect_attempts);
+    case PROP_MAX_CONNECT_RETRIES:
+      g_value_set_int (value, self->max_connect_retries);
       break;
     case PROP_RECONNECT:
       g_value_set_boolean (value, self->reconnect);
@@ -149,8 +149,8 @@ gst_srt_src_set_property (GObject * object,
     case PROP_POLL_TIMEOUT:
       self->poll_timeout = g_value_get_int (value);
       break;
-    case PROP_MAX_CONNECT_ATTEMPTS:
-      self->max_connect_attempts = g_value_get_int (value);
+    case PROP_MAX_CONNECT_RETRIES:
+      self->max_connect_retries = g_value_get_int (value);
       break;
     case PROP_RECONNECT:
       self->reconnect = g_value_get_boolean (value);
@@ -270,8 +270,8 @@ gst_srt_src_start (GstBaseSrc * src)
     return FALSE;
   }
   // Attempt initial connection here
-  for (reconnects = 0; self->max_connect_attempts < 0
-      || reconnects <= self->max_connect_attempts; reconnects++) {
+  for (reconnects = 0; self->max_connect_retries < 0
+      || reconnects <= self->max_connect_retries; reconnects++) {
     SRT_SOCKSTATUS status;
     SRTSOCKET rsock;
 
@@ -429,12 +429,11 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
           return GST_FLOW_EOS;
         }
 
-        if (self->max_connect_attempts >= 0 &&
-            ++(priv->n_connect_attempts) > self->max_connect_attempts) {
+        if (self->max_connect_retries >= 0 &&
+            ++(priv->n_connect_attempts) > self->max_connect_retries) {
           GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
-              ("Exceeded maximum re-connection attempts (%d/%d)",
-                  priv->n_connect_attempts, self->max_connect_attempts),
-              (NULL));
+              ("Exceeded maximum connection retries (%d/%d)",
+                  priv->n_connect_attempts, self->max_connect_retries), (NULL));
           return GST_FLOW_EOS;
         }
       }
@@ -592,10 +591,10 @@ gst_srt_src_class_init (GstSRTSrcClass * klass)
       -1, G_MAXINT32, SRT_DEFAULT_POLL_TIMEOUT,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
-  properties[PROP_MAX_CONNECT_ATTEMPTS] =
-      g_param_spec_int ("max-connect-attempts", "Max connection attempts",
-      "Maximum consecutive connection attempts (-1 = infinite)",
-      -1, G_MAXINT32, SRT_DEFAULT_MAX_RECONNECTS,
+  properties[PROP_MAX_CONNECT_RETRIES] =
+      g_param_spec_int ("max-connect-retries", "Max connection retries",
+      "Maximum consecutive connection retries (-1 = infinite)",
+      -1, G_MAXINT32, SRT_DEFAULT_MAX_CONNECT_RETRIES,
       G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
   properties[PROP_RECONNECT] =
@@ -633,7 +632,7 @@ gst_srt_src_init (GstSRTSrc * self)
   gst_srt_default_params (&self->params, FALSE);
 
   self->poll_timeout = SRT_DEFAULT_POLL_TIMEOUT;
-  self->max_connect_attempts = SRT_DEFAULT_MAX_RECONNECTS;
+  self->max_connect_retries = SRT_DEFAULT_MAX_CONNECT_RETRIES;
   priv->sock = SRT_INVALID_SOCK;
   priv->poll_id = -1;
   priv->n_frames = 0;
