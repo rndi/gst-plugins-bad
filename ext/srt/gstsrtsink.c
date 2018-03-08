@@ -31,7 +31,8 @@
  * <refsect2>
  * <title>Examples</title>
  * |[
- * gst-launch-1.0 -v audiotestsrc ! srtsink
+ * gst-launch-1.0 -v audiotestsrc ! srtsink uri="srt://:7001"
+ * gst-launch-1.0 -v audiotestsrc ! srtsink uri="srt://127.0.0.1:7001"
  * ]| This pipeline shows how to serve SRT packets through the default port.
  * </refsect2>
  * 
@@ -211,7 +212,7 @@ gst_srt_sink_set_property (GObject * object,
 }
 
 static gboolean
-idle_listen_callback (gpointer data)
+idle_callback (gpointer data)
 {
   GstSRTSink *self = GST_SRT_SINK (data);
   GstSRTSinkPrivate *priv = GST_SRT_SINK_GET_PRIVATE (self);
@@ -358,7 +359,7 @@ gst_srt_sink_start (GstBaseSink * sink)
   priv->context = g_main_context_new ();
   priv->sink_source = g_idle_source_new ();
   g_source_set_callback (priv->sink_source,
-      (GSourceFunc) idle_listen_callback, gst_object_ref (self),
+      (GSourceFunc) idle_callback, gst_object_ref (self),
       (GDestroyNotify) gst_object_unref);
 
   g_source_attach (priv->sink_source, priv->context);

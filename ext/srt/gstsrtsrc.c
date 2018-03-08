@@ -32,7 +32,8 @@
  * <title>Examples</title>
  * |[
  * gst-launch-1.0 -v srtsrc uri="srt://:7001" ! fakesink
- * ]| This pipeline shows how to bind SRT server by setting #GstSRTSrc:uri property. 
+ * gst-launch-1.0 -v srtsrc uri="srt://127.0.0.1:7001" ! fakesink
+ * ]| These pipelines show how to bind SRT server by setting #GstSRTSrc:uri property. 
  * </refsect2>
  * 
  */
