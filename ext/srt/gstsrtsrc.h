@@ -48,7 +48,8 @@ struct _GstSRTSrc {
   GstUri *uri;
   GstCaps *caps;
   gint poll_timeout;
-  gint max_reconnects;
+  gint max_connect_attempts;
+  gboolean reconnect;
 
   GstSRTParams params;
 
