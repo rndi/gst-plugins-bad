@@ -195,12 +195,44 @@ gst_srt_src_get_caps (GstBaseSrc * src, GstCaps * filter)
 }
 
 static gboolean
-gst_srt_src_start (GstBaseSrc * src)
+gst_srt_src_stop (GstBaseSrc * src)
 {
   GstSRTSrc *self = GST_SRT_SRC (src);
   GstSRTSrcPrivate *priv = GST_SRT_SRC_GET_PRIVATE (self);
 
+  if (priv->poll_id >= 0) {
+    srt_epoll_remove_usock (priv->poll_id, priv->sock);
+    srt_epoll_release (priv->poll_id);
+    priv->poll_id = SRT_ERROR;
+  }
+
+  if (priv->sock != SRT_INVALID_SOCK) {
+    srt_close (priv->sock);
+    priv->sock = SRT_INVALID_SOCK;
+  }
+
+  priv->cancelled = FALSE;
+  priv->n_frames = 0;
+  priv->n_reconnects = 0;
+
+  srt_cleanup ();
+
+  return TRUE;
+}
+
+static gboolean
+gst_srt_src_start (GstBaseSrc * src)
+{
+  gint pollid = -1;
+  SRTSOCKET sock = SRT_INVALID_SOCK;
+  gint reconnects;
+
+  GstSRTSrc *self = GST_SRT_SRC (src);
+  GstSRTSrcPrivate *priv = GST_SRT_SRC_GET_PRIVATE (self);
+
   g_assert (src != NULL);
+
+  gst_srt_src_stop (src);
 
   if (self->uri != NULL) {
     if (!gst_srt_init_params_from_uri (GST_ELEMENT_CAST (src),
@@ -222,41 +254,116 @@ gst_srt_src_start (GstBaseSrc * src)
     srt_setloglevel (LOG_DEBUG);
   }
 
-  priv->poll_id = srt_epoll_create ();
-  if (priv->poll_id < 0) {
+  pollid = srt_epoll_create ();
+  if (pollid < 0) {
     GST_ELEMENT_ERROR (self, LIBRARY, INIT, (NULL),
         ("failed to create poll id for SRT socket (reason: %s)",
             srt_getlasterror_str ()));
     return FALSE;
   }
+  // Attempt initial connection here
+  for (reconnects = 0; self->max_reconnects < 0
+      || reconnects <= self->max_reconnects; reconnects++) {
+    SRT_SOCKSTATUS status;
+    SRTSOCKET rsock;
 
-  priv->cancelled = FALSE;
+    sock = gst_srt_start_socket (GST_ELEMENT_CAST (self), &self->params);
+    if (sock == SRT_INVALID_SOCK) {
+      GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
+          ("Creating SRT socket: %s", srt_getlasterror_str ()), (NULL));
+      break;
+    }
 
-  return TRUE;
-}
+    if (srt_epoll_add_usock (pollid, sock, &(int) {
+            SRT_EPOLL_IN | SRT_EPOLL_ERR}) != 0) {
+      GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
+          ("Adding SRT socket to poll set: %s",
+              srt_getlasterror_str ()), (NULL));
+      srt_close (sock);
+      sock = SRT_INVALID_SOCK;
+      break;
+    }
 
-static gboolean
-gst_srt_src_stop (GstBaseSrc * src)
-{
-  GstSRTSrc *self = GST_SRT_SRC (src);
-  GstSRTSrcPrivate *priv = GST_SRT_SRC_GET_PRIVATE (self);
+    while (TRUE) {
+      gint ret = srt_epoll_wait (pollid, &rsock, &(int) {
+            1
+          }, 0, 0, self->poll_timeout, 0, 0, 0, 0);
 
-  if (priv->poll_id >= 0) {
-    srt_epoll_remove_usock (priv->poll_id, priv->sock);
-    srt_epoll_release (priv->poll_id);
-    priv->poll_id = SRT_ERROR;
+      if (priv->cancelled) {
+        srt_close (sock);
+        sock = SRT_INVALID_SOCK;
+        GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ, ("Connection error"),
+            ("failed to connect (reason: cancelled)"));
+        break;
+      }
+
+      if (ret >= 0) {
+        g_assert (sock == rsock);
+        status = srt_getsockstate (sock);
+        if ((status != SRTS_INIT) && (status != SRTS_OPENED)
+            && (status != SRTS_CONNECTING)) {
+          break;
+        }
+      }
+      // TODO: Maybe add a 'yield' here in case epoll starts thrashing?
+    }
+
+    if (sock == SRT_INVALID_SOCK)
+      break;
+
+    if (status == SRTS_CONNECTED) {
+      GST_LOG_OBJECT (self, "SRT source is connected");
+      break;
+    } else if (status == SRTS_LISTENING) {
+      SRTSOCKET nsock;
+
+      nsock = srt_accept (sock, NULL, NULL);
+      if (nsock == SRT_INVALID_SOCK) {
+        GST_WARNING_OBJECT (self,
+            "Error accepting client connection on SRT socket: %s",
+            srt_getlasterror_str ());
+        srt_epoll_remove_usock (pollid, sock);
+        srt_close (sock);
+        sock = SRT_INVALID_SOCK;
+        continue;
+      }
+      // One client at a time so stop listening and
+      // continue with the new client
+      srt_epoll_remove_usock (pollid, sock);
+      srt_close (sock);
+      sock = SRT_INVALID_SOCK;
+
+      if (srt_epoll_add_usock (pollid, nsock, &(int) {
+              SRT_EPOLL_IN | SRT_EPOLL_ERR}) != 0) {
+        GST_WARNING_OBJECT (self,
+            "Error adding SRT client socket to poll set: %s",
+            srt_getlasterror_str ());
+        srt_close (nsock);
+        continue;
+      }
+      sock = nsock;
+
+      GST_LOG_OBJECT (self, "SRT listener connected");
+      break;
+    }
+    // Always start over clean
+    srt_epoll_remove_usock (pollid, sock);
+    srt_close (sock);
+    sock = SRT_INVALID_SOCK;
   }
 
-  if (priv->sock != SRT_INVALID_SOCK) {
-    srt_close (priv->sock);
-    priv->sock = SRT_INVALID_SOCK;
+  if (sock != SRT_INVALID_SOCK) {
+    priv->poll_id = pollid;
+    priv->sock = sock;
+    return TRUE;
   }
 
-  priv->cancelled = FALSE;
+  srt_epoll_release (pollid);
 
-  srt_cleanup ();
+  GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ, ("Connection error"),
+      ("failed to connect (reason: %s)", srt_getlasterror_str ()));
 
-  return TRUE;
+  return FALSE;
 }
 
 static gboolean
@@ -397,10 +504,8 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
       return GST_FLOW_OK;
     } else if (status == SRTS_LISTENING) {
       SRTSOCKET nsock;
-      struct sockaddr client_sa;
-      size_t client_sa_len;
 
-      nsock = srt_accept (sock, &client_sa, (int *) &client_sa_len);
+      nsock = srt_accept (sock, NULL, NULL);
       if (nsock == SRT_INVALID_SOCK) {
         GST_WARNING_OBJECT (self,
             "Error accepting client connection on SRT socket: %s",
@@ -423,6 +528,11 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
       priv->sock = nsock;
 
       priv->n_frames = 0;
+
+      // Reset re-connect counter since we only counting
+      // consecutive failing attempts
+      priv->n_reconnects = 0;
+
       GST_LOG_OBJECT (self, "SRT listener connected");
     }
   }

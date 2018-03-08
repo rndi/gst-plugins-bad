@@ -233,6 +233,7 @@ gst_srt_key_length_get_type (void)
 
   if (!gst_srt_key_length_type) {
     static GEnumValue pattern_types[] = {
+      {GST_SRT_NO_KEY, "no key", "0"},
       {GST_SRT_KEY_128_BITS, "128 bits", "128"},
       {GST_SRT_KEY_192_BITS, "192 bits", "192"},
       {GST_SRT_KEY_256_BITS, "256 bits", "256"},
@@ -574,8 +575,8 @@ gst_srt_install_properties (GObjectClass * gobject_class, gint offset)
 
   g_object_class_install_property (gobject_class, PROP_KEY_LENGTH + offset,
       g_param_spec_enum ("key-length", "key length",
-          "Crypto key length in bits {128,192,256}", GST_TYPE_SRT_KEY_LENGTH,
-          SRT_DEFAULT_KEY_LENGTH, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          "Crypto key length in bits {0,128,192,256}", GST_TYPE_SRT_KEY_LENGTH,
+          GST_SRT_NO_KEY, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_MSS + offset,
       g_param_spec_int ("mss", "MSS",
