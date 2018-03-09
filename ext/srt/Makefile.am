@@ -2,12 +2,8 @@ plugin_LTLIBRARIES = libgstsrt.la
 
 libgstsrt_la_SOURCES = \
 	gstsrt.c \
-	gstsrtbasesrc.c \
-	gstsrtclientsrc.c \
-	gstsrtserversrc.c \
-	gstsrtbasesink.c \
-	gstsrtclientsink.c \
-	gstsrtserversink.c \
+	gstsrtsrc.c \
+	gstsrtsink.c \
 	$(NULL)
 
 libgstsrt_la_CFLAGS = \
@@ -30,11 +26,8 @@ libgstsrt_la_LDFLAGS = $(GST_PLUGIN_LDFLAGS)
 CLEANFILES = $(BUILT_SOURCES)
 
 noinst_HEADERS = \
-	gstsrtbasesink.h \
-	gstsrtclientsink.h  \
-	gstsrtserversrc.h \
-	gstsrtbasesrc.h \
-	gstsrtclientsrc.h \
-	gstsrtserversink.h
+	gstsrt.h \
+	gstsrtsrc.h \
+	gstsrtsink.h
 
 include $(top_srcdir)/common/gst-glib-gen.mak
