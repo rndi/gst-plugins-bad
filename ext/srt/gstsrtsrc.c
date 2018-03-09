@@ -243,19 +243,20 @@ gst_srt_src_start (GstBaseSrc * src)
   gst_srt_src_stop (src);
 
   if (self->uri != NULL) {
+    // gst_srt_init_params_from_uri() will set element error as needed
     if (!gst_srt_init_params_from_uri (GST_ELEMENT_CAST (src),
             &self->params, self->uri))
-      return FALSE;
+      goto fail;
   }
-
+  // gst_srt_validate_params() will set element error as needed
   if (!gst_srt_validate_params (GST_ELEMENT_CAST (src), &self->params))
-    return FALSE;
+    goto fail;
 
   if (srt_startup () != 0) {
     GST_ELEMENT_ERROR (self, LIBRARY, INIT, (NULL),
         ("failed to initialize SRT library (reason: %s)",
             srt_getlasterror_str ()));
-    return FALSE;
+    goto fail;
   }
 
   if ((FALSE)) {
@@ -267,7 +268,7 @@ gst_srt_src_start (GstBaseSrc * src)
     GST_ELEMENT_ERROR (self, LIBRARY, INIT, (NULL),
         ("failed to create poll id for SRT socket (reason: %s)",
             srt_getlasterror_str ()));
-    return FALSE;
+    goto fail;
   }
   // Attempt initial connection here
   for (reconnects = 0; self->max_connect_retries < 0
@@ -279,7 +280,7 @@ gst_srt_src_start (GstBaseSrc * src)
     if (sock == SRT_INVALID_SOCK) {
       GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
           ("Creating SRT socket: %s", srt_getlasterror_str ()), (NULL));
-      break;
+      goto fail;
     }
 
     if (srt_epoll_add_usock (pollid, sock, &(int) {
@@ -287,37 +288,28 @@ gst_srt_src_start (GstBaseSrc * src)
       GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
           ("Adding SRT socket to poll set: %s",
               srt_getlasterror_str ()), (NULL));
-      srt_close (sock);
-      sock = SRT_INVALID_SOCK;
-      break;
+      goto fail;
     }
 
     while (TRUE) {
-      gint ret = srt_epoll_wait (pollid, &rsock, &(int) {
-            1
-          }, 0, 0, self->poll_timeout, 0, 0, 0, 0);
+      // Ignore srt_epoll_wait return code: socket state can change without
+      // an epoll event firing
+      srt_epoll_wait (pollid, &rsock, &(int) {
+          1}, 0, 0, self->poll_timeout, 0, 0, 0, 0);
 
       if (priv->cancelled) {
-        srt_close (sock);
-        sock = SRT_INVALID_SOCK;
         GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ, ("Connection error"),
             ("failed to connect (reason: cancelled)"));
-        break;
+        goto fail;
       }
 
-      if (ret >= 0) {
-        g_assert (sock == rsock);
-        status = srt_getsockstate (sock);
-        if ((status != SRTS_INIT) && (status != SRTS_OPENED)
-            && (status != SRTS_CONNECTING)) {
-          break;
-        }
+      status = srt_getsockstate (sock);
+      if ((status != SRTS_INIT) && (status != SRTS_OPENED)
+          && (status != SRTS_CONNECTING)) {
+        break;
       }
       // TODO: Maybe add a 'yield' here in case epoll starts thrashing?
     }
-
-    if (sock == SRT_INVALID_SOCK)
-      break;
 
     if (status == SRTS_CONNECTED) {
       GST_LOG_OBJECT (self, "SRT source is connected");
@@ -366,10 +358,14 @@ gst_srt_src_start (GstBaseSrc * src)
     return TRUE;
   }
 
-  srt_epoll_release (pollid);
-
-  GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ, ("Connection error"),
-      ("failed to connect (reason: %s)", srt_getlasterror_str ()));
+fail:
+  if (pollid >= 0) {
+    if (sock != SRT_INVALID_SOCK) {
+      srt_epoll_remove_usock (pollid, sock);
+      srt_close (sock);
+    }
+    srt_epoll_release (pollid);
+  }
 
   return FALSE;
 }

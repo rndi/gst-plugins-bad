@@ -421,6 +421,9 @@ gst_srt_init_params_from_uri (const GstElement * elem,
         }
       } else if (key && g_str_has_prefix ((const gchar *) key, "pass")) {
         params->passphrase = g_strdup ((const gchar *) value);
+        // also default the key length to lowest possible if not set yet
+        if (params->key_length == GST_SRT_NO_KEY)
+          params->key_length = GST_SRT_KEY_128_BITS;
       } else if (key && g_str_has_prefix ((const gchar *) key, "key")) {
         if (!g_strcmp0 ((const gchar *) value, "0"))
           params->key_length = GST_SRT_NO_KEY;
@@ -741,6 +744,9 @@ gst_srt_set_property (GstSRTParams * params,
     case PROP_PASSPHRASE:
       g_free (params->passphrase);
       params->passphrase = g_value_dup_string (value);
+      // also default the key length to lowest possible if not set yet
+      if (params->key_length == GST_SRT_NO_KEY)
+        params->key_length = GST_SRT_KEY_128_BITS;
       break;
     case PROP_KEY_LENGTH:
       params->key_length = g_value_get_enum (value);
