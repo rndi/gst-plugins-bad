@@ -480,9 +480,14 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
       bufsize = gst_buffer_get_size (outbuf);
       for (recvlen = 0; recvlen < bufsize;) {
         gint ret;
+        gint rem = bufsize - recvlen;
 
-        ret = srt_recvmsg (sock, (char *) (info.data + recvlen),
-            bufsize - recvlen);
+        // Workaround for SRT being unhappy about buffers that
+        // are less than the chunk size
+        if (rem < SRT_DEFAULT_MSG_SIZE)
+          break;
+
+        ret = srt_recvmsg (sock, (char *) (info.data + recvlen), rem);
 
         if (ret <= 0)
           break;
@@ -641,7 +646,7 @@ gst_srt_src_init (GstSRTSrc * self)
    * when they were captured */
   gst_base_src_set_do_timestamp (GST_BASE_SRC (self), TRUE);
 
-  gst_base_src_set_blocksize (GST_BASE_SRC (self), 1316 * 10);
+  gst_base_src_set_blocksize (GST_BASE_SRC (self), SRT_DEFAULT_MSG_SIZE * 10);
 }
 
 static GstURIType
