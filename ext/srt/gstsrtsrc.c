@@ -271,10 +271,19 @@ gst_srt_src_start (GstBaseSrc * src)
     goto fail;
   }
   // Attempt initial connection here
-  for (reconnects = 0; self->max_connect_retries < 0
-      || reconnects <= self->max_connect_retries; reconnects++) {
+  reconnects = 0;
+  while (TRUE) {
     SRT_SOCKSTATUS status;
     SRTSOCKET rsock;
+
+    if (self->max_connect_retries >= 0 &&
+        reconnects > self->max_connect_retries) {
+      GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
+          ("Exceeded maximum connection retries (%d/%d)",
+              reconnects, self->max_connect_retries), (NULL));
+      goto fail;
+    }
+    reconnects++;
 
     sock = gst_srt_start_socket (GST_ELEMENT_CAST (self), &self->params);
     if (sock == SRT_INVALID_SOCK) {
@@ -426,12 +435,13 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
         }
 
         if (self->max_connect_retries >= 0 &&
-            ++(priv->n_connect_attempts) > self->max_connect_retries) {
+            priv->n_connect_attempts > self->max_connect_retries) {
           GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
               ("Exceeded maximum connection retries (%d/%d)",
                   priv->n_connect_attempts, self->max_connect_retries), (NULL));
           return GST_FLOW_EOS;
         }
+        priv->n_connect_attempts++;
       }
 
       priv->n_frames = 0;
