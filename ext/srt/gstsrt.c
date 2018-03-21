@@ -414,7 +414,8 @@ gst_srt_init_params_from_uri (const GstElement * elem,
               ("Unrecognized SRT connection mode"), (NULL));
           goto out;
         }
-      } else if (!g_strcmp0 ((const gchar *) key, "latency")) {
+      } else if (!g_strcmp0 ((const gchar *) key, "latency") ||
+          !g_strcmp0 ((const gchar *) key, "srtlatency")) {
         if (g_ascii_string_to_signed ((const gchar *) value, 10, 0, INT_MAX,
                 &value64, &error)) {
           params->latency = (gint) value64;
@@ -492,13 +493,6 @@ gst_srt_init_params_from_uri (const GstElement * elem,
         if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, 255,
                 &value64, &error)) {
           params->ipttl = (gint) value64;
-        }
-      } else if (!g_strcmp0 ((const gchar *) key, "remotehost")) {
-        params->remote_host = g_strdup ((const gchar *) value);
-      } else if (!g_strcmp0 ((const gchar *) key, "remoteport")) {
-        if (g_ascii_string_to_unsigned ((const gchar *) value, 10, 1, USHRT_MAX,
-                &uvalue64, &error)) {
-          params->remote_port = (guint16) uvalue64;
         }
       } else if (!g_strcmp0 ((const gchar *) key, "localaddress")) {
         params->local_address = g_strdup ((const gchar *) value);
