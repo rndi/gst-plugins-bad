@@ -86,6 +86,7 @@ struct _GstSRTSinkPrivate
   GThread *thread;
 
   GList *clients;
+  guint64 n_frames;
 };
 
 #define GST_SRT_SINK_GET_PRIVATE(obj)  \
@@ -226,7 +227,18 @@ idle_callback (gpointer data)
   sock = priv->sock;
   status = srt_getsockstate (sock);
   if (status == SRTS_BROKEN || status == SRTS_CLOSED || status == SRTS_NONEXIST) {
+    guint64 n_frames;
+
+    GST_OBJECT_LOCK (self);
+    n_frames = priv->n_frames;
+    priv->n_frames = 0;
+    GST_OBJECT_UNLOCK (self);
+
     if (sock != SRT_INVALID_SOCK) {
+      if (self->params.conn_mode != GST_SRT_LISTENER_CONNECTION
+          && n_frames != 0) {
+        GST_LOG_OBJECT (self, "SRT destination disconnected");
+      }
       srt_epoll_remove_usock (pollid, sock);
       srt_close (sock);
     }
@@ -306,7 +318,7 @@ idle_callback (gpointer data)
 
     g_signal_emit (self, signals[SIG_CLIENT_ADDED], 0, client->sock,
         client->sockaddr);
-    GST_DEBUG_OBJECT (self, "client added");
+    GST_LOG_OBJECT (self, "client added");
   }
 
   return G_SOURCE_CONTINUE;
@@ -367,8 +379,8 @@ gst_srt_sink_start (GstBaseSink * sink)
 
   priv->thread = g_thread_try_new ("srtsink", thread_func, self, &error);
   if (error != NULL) {
-    GST_WARNING_OBJECT (self, "failed to create thread (reason: %s)",
-        error->message);
+    GST_ELEMENT_ERROR (self, LIBRARY, INIT, (NULL),
+        ("failed to create thread (reason: %s)", error->message));
 
     srt_epoll_release (priv->poll_id);
     priv->poll_id = SRT_ERROR;
@@ -423,17 +435,22 @@ gst_srt_sink_render (GstBaseSink * sink, GstBuffer * buffer)
             client->sockaddr);
         srt_client_free (client);
         GST_OBJECT_LOCK (sink);
-        GST_DEBUG_OBJECT (self, "client removed");
+        GST_LOG_OBJECT (self, "client removed");
       } else if (srt_sendmsg (client->sock, (const char *) info.data, info.size,
               -1, 1) <= 0) {
         GST_WARNING_OBJECT (self, "Send failed: %s", srt_getlasterror_str ());
         continue;
       }
+      priv->n_frames++;
     }
   } else if (srt_getsockstate (priv->sock) == SRTS_CONNECTED) {
     if (srt_sendmsg (priv->sock, (const char *) info.data, info.size,
             -1, 1) <= 0) {
       GST_WARNING_OBJECT (self, "Send failed: %s", srt_getlasterror_str ());
+    } else {
+      if (priv->n_frames == 0)
+        GST_LOG_OBJECT (self, "SRT destination has connected");
+      priv->n_frames++;
     }
   }
   GST_OBJECT_UNLOCK (sink);
@@ -454,6 +471,7 @@ gst_srt_sink_stop (GstBaseSink * sink)
   priv->cancelled = TRUE;
   srt_close (priv->sock);
   priv->sock = SRT_INVALID_SOCK;
+  priv->n_frames = 0;
 
   if (priv->loop) {
     g_main_loop_quit (priv->loop);
@@ -592,6 +610,7 @@ gst_srt_sink_init (GstSRTSink * self)
   self->poll_timeout = SRT_DEFAULT_POLL_TIMEOUT;
   priv->sock = SRT_INVALID_SOCK;
   priv->poll_id = -1;
+  priv->n_frames = 0;
 }
 
 static GstURIType
