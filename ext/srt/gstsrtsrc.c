@@ -240,8 +240,6 @@ gst_srt_src_start (GstBaseSrc * src)
 
   g_assert (src != NULL);
 
-  gst_srt_src_stop (src);
-
   if (self->uri != NULL) {
     // gst_srt_init_params_from_uri() will set element error as needed
     if (!gst_srt_init_params_from_uri (GST_ELEMENT_CAST (src),
