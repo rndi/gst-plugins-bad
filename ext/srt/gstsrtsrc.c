@@ -74,6 +74,8 @@ enum
   PROP_POLL_TIMEOUT,
   PROP_MAX_CONNECT_RETRIES,
   PROP_RECONNECT,
+  PROP_MSG_SIZE,
+  PROP_MAX_MSGS_PER_READ,
 
   /*< private > */
   PROP_LAST
@@ -120,6 +122,12 @@ gst_srt_src_get_property (GObject * object,
     case PROP_RECONNECT:
       g_value_set_boolean (value, self->reconnect);
       break;
+    case PROP_MSG_SIZE:
+      g_value_set_int (value, self->msg_size);
+      break;
+    case PROP_MAX_MSGS_PER_READ:
+      g_value_set_int (value, self->max_msgs_per_read);
+      break;
     default:
       if (!gst_srt_get_property (&self->params, object, prop_id, value,
               PROP_LAST - 1)) {
@@ -154,6 +162,12 @@ gst_srt_src_set_property (GObject * object,
       break;
     case PROP_RECONNECT:
       self->reconnect = g_value_get_boolean (value);
+      break;
+    case PROP_MSG_SIZE:
+      self->msg_size = g_value_get_int (value);
+      break;
+    case PROP_MAX_MSGS_PER_READ:
+      self->max_msgs_per_read = g_value_get_int (value);
       break;
     default:
       if (!gst_srt_set_property (&self->params, object, prop_id, value,
@@ -362,6 +376,9 @@ gst_srt_src_start (GstBaseSrc * src)
   if (sock != SRT_INVALID_SOCK) {
     priv->poll_id = pollid;
     priv->sock = sock;
+
+    gst_base_src_set_blocksize (src, self->msg_size * self->max_msgs_per_read);
+
     return TRUE;
   }
 
@@ -492,7 +509,7 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
 
         // Workaround for SRT being unhappy about buffers that
         // are less than the chunk size
-        if (rem < SRT_DEFAULT_MSG_SIZE)
+        if (rem < self->msg_size)
           break;
 
         ret = srt_recvmsg (sock, (char *) (info.data + recvlen), rem);
@@ -611,6 +628,18 @@ gst_srt_src_class_init (GstSRTSrcClass * klass)
       "Attempt to re-connect broken connections while playing",
       FALSE, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
 
+  properties[PROP_MSG_SIZE] =
+      g_param_spec_int ("msg-size", "Message size",
+      "Message size to use with SRT",
+      1, G_MAXINT32, SRT_DEFAULT_MSG_SIZE,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
+  properties[PROP_MAX_MSGS_PER_READ] =
+      g_param_spec_int ("max-msgs-per-read", "Messages per read",
+      "Maximum SRT messages to read per buffer fill",
+      1, G_MAXINT32, SRT_DEFAULT_MAX_MSGS_PER_READ,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (gobject_class, PROP_LAST, properties);
 
   gst_srt_install_properties (gobject_class, PROP_LAST - 1);
@@ -642,6 +671,8 @@ gst_srt_src_init (GstSRTSrc * self)
 
   self->poll_timeout = SRT_DEFAULT_POLL_TIMEOUT;
   self->max_connect_retries = SRT_DEFAULT_MAX_CONNECT_RETRIES;
+  self->msg_size = SRT_DEFAULT_MSG_SIZE;
+  self->max_msgs_per_read = SRT_DEFAULT_MAX_MSGS_PER_READ;
   priv->sock = SRT_INVALID_SOCK;
   priv->poll_id = -1;
   priv->n_frames = 0;
@@ -653,8 +684,6 @@ gst_srt_src_init (GstSRTSrc * self)
   /* make basesrc set timestamps on outgoing buffers based on the running_time
    * when they were captured */
   gst_base_src_set_do_timestamp (GST_BASE_SRC (self), TRUE);
-
-  gst_base_src_set_blocksize (GST_BASE_SRC (self), SRT_DEFAULT_MSG_SIZE * 10);
 }
 
 static GstURIType

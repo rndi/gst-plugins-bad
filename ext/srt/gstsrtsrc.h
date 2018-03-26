@@ -50,6 +50,8 @@ struct _GstSRTSrc {
   gint poll_timeout;
   gint max_connect_retries;
   gboolean reconnect;
+  guint msg_size;
+  guint max_msgs_per_read;
 
   GstSRTParams params;
 

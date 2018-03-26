@@ -48,6 +48,7 @@ struct _GstSRTSink {
   GstUri *uri;
   GstCaps *caps;
   gint poll_timeout;
+  guint msg_size;
 
   GstSRTParams params;
 

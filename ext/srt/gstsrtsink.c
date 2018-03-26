@@ -59,6 +59,7 @@ enum
   PROP_URI = 1,
   PROP_POLL_TIMEOUT,
   PROP_STATS,
+  PROP_MSG_SIZE,
 
   /*< private > */
   PROP_LAST
@@ -180,6 +181,9 @@ gst_srt_sink_get_property (GObject * object,
       GST_OBJECT_UNLOCK (self);
       break;
     }
+    case PROP_MSG_SIZE:
+      g_value_set_int (value, self->msg_size);
+      break;
     default:
       if (!gst_srt_get_property (&self->params, object, prop_id, value,
               PROP_LAST - 1)) {
@@ -202,6 +206,9 @@ gst_srt_sink_set_property (GObject * object,
       break;
     case PROP_POLL_TIMEOUT:
       self->poll_timeout = g_value_get_int (value);
+      break;
+    case PROP_MSG_SIZE:
+      self->msg_size = g_value_get_int (value);
       break;
     default:
       if (!gst_srt_set_property (&self->params, object, prop_id, value,
@@ -392,6 +399,33 @@ gst_srt_sink_start (GstBaseSink * sink)
   return TRUE;
 }
 
+static gsize
+gst_srt_send (GstSRTSink * self, const SRTSOCKET sock, const guint8 * buffer,
+    gsize length)
+{
+  const guint8 *msg = buffer;
+  const gint msg_size = (self->msg_size <= 0)
+      ? SRT_DEFAULT_MSG_SIZE : self->msg_size;
+
+  while (msg < (buffer + length)) {
+    gsize msglen;
+    gint rc;
+
+    msglen = MIN (length - (msg - buffer), msg_size);
+
+    rc = srt_sendmsg (sock, (const char *) msg, msglen, -1, TRUE);
+    if (rc <= 0) {
+      GST_WARNING_OBJECT (self,
+          "Error sending data on SRT socket: %s", srt_getlasterror_str ());
+
+      break;
+    }
+    msg += rc;
+  }
+
+  return (gsize) (msg - buffer);
+}
+
 static GstFlowReturn
 gst_srt_sink_render (GstBaseSink * sink, GstBuffer * buffer)
 {
@@ -436,16 +470,14 @@ gst_srt_sink_render (GstBaseSink * sink, GstBuffer * buffer)
         srt_client_free (client);
         GST_OBJECT_LOCK (sink);
         GST_LOG_OBJECT (self, "client removed");
-      } else if (srt_sendmsg (client->sock, (const char *) info.data, info.size,
-              -1, 1) <= 0) {
+      } else if (gst_srt_send (self, client->sock, info.data, info.size) <= 0) {
         GST_WARNING_OBJECT (self, "Send failed: %s", srt_getlasterror_str ());
         continue;
       }
       priv->n_frames++;
     }
   } else if (srt_getsockstate (priv->sock) == SRTS_CONNECTED) {
-    if (srt_sendmsg (priv->sock, (const char *) info.data, info.size,
-            -1, 1) <= 0) {
+    if (gst_srt_send (self, priv->sock, info.data, info.size) <= 0) {
       GST_WARNING_OBJECT (self, "Send failed: %s", srt_getlasterror_str ());
     } else {
       if (priv->n_frames == 0)
@@ -552,6 +584,12 @@ gst_srt_sink_class_init (GstSRTSinkClass * klass)
           G_PARAM_READABLE | G_PARAM_STATIC_STRINGS),
       G_PARAM_READABLE | G_PARAM_STATIC_STRINGS);
 
+  properties[PROP_MSG_SIZE] =
+      g_param_spec_int ("msg-size", "Message size",
+      "Message size to use with SRT",
+      1, G_MAXINT32, SRT_DEFAULT_MSG_SIZE,
+      G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS);
+
   g_object_class_install_properties (gobject_class, PROP_LAST, properties);
 
   gst_srt_install_properties (gobject_class, PROP_LAST - 1);
@@ -608,6 +646,7 @@ gst_srt_sink_init (GstSRTSink * self)
   gst_srt_default_params (&self->params, TRUE);
 
   self->poll_timeout = SRT_DEFAULT_POLL_TIMEOUT;
+  self->msg_size = SRT_DEFAULT_MSG_SIZE;
   priv->sock = SRT_INVALID_SOCK;
   priv->poll_id = -1;
   priv->n_frames = 0;

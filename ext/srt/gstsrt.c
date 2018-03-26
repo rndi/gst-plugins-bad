@@ -607,9 +607,9 @@ gst_srt_install_properties (GObjectClass * gobject_class, gint offset)
           -1, 1, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_INPUT_RATE + offset,
-      g_param_spec_uint64 ("input-rate", "Input rate",
+      g_param_spec_int64 ("input-rate", "Input rate",
           "Maximum BW with possible overhead",
-          -1, G_MAXUINT64, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+          -1, G_MAXINT64, -1, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
   g_object_class_install_property (gobject_class, PROP_OVERHEAD_BW + offset,
       g_param_spec_int ("overhead", "Overhead bw",
@@ -1154,37 +1154,6 @@ gst_srt_start_socket (const GstElement * elem, const GstSRTParams * params)
     }
   }
   return sock;
-}
-
-gsize
-gst_srt_send (GstElement * elem, const SRTSOCKET sock,
-    const guint8 * buffer, gsize length)
-{
-  const guint8 *msg = buffer;
-
-  if (sock == SRT_INVALID_SOCK)
-    return 0;
-
-  if (srt_getsockstate (sock) != SRTS_CONNECTED)
-    return 0;
-
-  while (msg < (buffer + length)) {
-    gsize msglen;
-    gint rc;
-
-    msglen = MIN (length - (msg - buffer), SRT_DEFAULT_MSG_SIZE);
-
-    rc = srt_sendmsg (sock, (const char *) msg, msglen, -1, TRUE);
-    if (rc <= 0) {
-      GST_WARNING_OBJECT (elem,
-          "Error sending data on SRT socket: %s", srt_getlasterror_str ());
-
-      break;
-    }
-    msg += rc;
-  }
-
-  return (gsize) (msg - buffer);
 }
 
 GstStructure *

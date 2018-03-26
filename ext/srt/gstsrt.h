@@ -33,6 +33,7 @@
 #define SRT_DEFAULT_LATENCY 125
 #define SRT_DEFAULT_KEY_LENGTH 0
 #define SRT_DEFAULT_MSG_SIZE 1316
+#define SRT_DEFAULT_MAX_MSGS_PER_READ 10
 #define SRT_DEFAULT_POLL_TIMEOUT 100
 #define SRT_DEFAULT_MAX_CONNECT_RETRIES 0
 
@@ -95,8 +96,6 @@ gboolean gst_srt_set_property (GstSRTParams * params,
     const GObject * object, guint prop_id, const GValue * value, gint offset);
 SRTSOCKET gst_srt_start_socket (const GstElement * elem,
     const GstSRTParams * params);
-gsize gst_srt_send (GstElement * elem, const SRTSOCKET sock,
-    const guint8 * buffer, gsize length);
 
 GstStructure *
 gst_srt_get_stats (GSocketAddress * sockaddr, SRTSOCKET sock);
