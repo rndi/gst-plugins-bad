@@ -287,6 +287,8 @@ gst_srt_src_start (GstBaseSrc * src)
   while (TRUE) {
     SRT_SOCKSTATUS status;
     SRTSOCKET rsock;
+    gint rsocklen;
+    gboolean waitforevent = TRUE;
 
     if (self->max_connect_retries >= 0 &&
         reconnects > self->max_connect_retries) {
@@ -312,11 +314,9 @@ gst_srt_src_start (GstBaseSrc * src)
       goto fail;
     }
 
-    while (TRUE) {
-      // Ignore srt_epoll_wait return code: socket state can change without
-      // an epoll event firing
-      srt_epoll_wait (pollid, &rsock, &(int) {
-          1}, 0, 0, self->poll_timeout, 0, 0, 0, 0);
+    while (waitforevent) {
+      gint ret = srt_epoll_wait (pollid, &rsock, &rsocklen, 0, 0,
+          self->poll_timeout, 0, 0, 0, 0);
 
       if (priv->cancelled) {
         GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ, ("Connection error"),
@@ -325,9 +325,21 @@ gst_srt_src_start (GstBaseSrc * src)
       }
 
       status = srt_getsockstate (sock);
-      if ((status != SRTS_INIT) && (status != SRTS_OPENED)
-          && (status != SRTS_CONNECTING)) {
-        break;
+      switch (status) {
+        case SRTS_INIT:
+        case SRTS_OPENED:
+        case SRTS_CONNECTING:
+          // No-op
+          break;
+        case SRTS_LISTENING:
+          if (ret > 0)
+            waitforevent = FALSE;
+          break;
+        default:
+          // Ignore srt_epoll_wait return code: socket state can change without
+          // an epoll event firing
+          waitforevent = FALSE;
+          break;
       }
       // TODO: Maybe add a 'yield' here in case epoll starts thrashing?
     }
