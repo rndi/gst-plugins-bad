@@ -289,6 +289,9 @@ gst_srt_src_start (GstBaseSrc * src)
     SRTSOCKET rsock;
     gint rsocklen;
     gboolean waitforevent = TRUE;
+    gint ctimeout = -1;
+    gint ctimeoutlen;
+    gint64 starttime;
 
     if (self->max_connect_retries >= 0 &&
         reconnects > self->max_connect_retries) {
@@ -299,10 +302,20 @@ gst_srt_src_start (GstBaseSrc * src)
     }
     reconnects++;
 
+    starttime = g_get_monotonic_time ();
     sock = gst_srt_start_socket (GST_ELEMENT_CAST (self), &self->params);
     if (sock == SRT_INVALID_SOCK) {
       GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
           ("Creating SRT socket: %s", srt_getlasterror_str ()), (NULL));
+      goto fail;
+    }
+
+    ctimeoutlen = sizeof (ctimeout);
+    if (srt_getsockopt (sock, 0, SRTO_CONNTIMEO, &ctimeout, &ctimeoutlen)) {
+      GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
+          ("SRT getsockopt failed"),
+          ("failed to get SRTO_CONNTIMEO (reason: %s)",
+              srt_getlasterror_str ()));
       goto fail;
     }
 
@@ -315,6 +328,7 @@ gst_srt_src_start (GstBaseSrc * src)
     }
 
     while (waitforevent) {
+      gint timediffMS;
       gint ret = srt_epoll_wait (pollid, &rsock, &rsocklen, 0, 0,
           self->poll_timeout, 0, 0, 0, 0);
 
@@ -322,6 +336,13 @@ gst_srt_src_start (GstBaseSrc * src)
         GST_ELEMENT_ERROR (self, RESOURCE, OPEN_READ, ("Connection error"),
             ("failed to connect (reason: cancelled)"));
         goto fail;
+      }
+
+      timediffMS = (gint) ((g_get_monotonic_time () - starttime) / 1000);
+      if (ctimeout > 0 && timediffMS >= ctimeout) {
+        GST_ELEMENT_WARNING (self, RESOURCE, FAILED, ("Connection timeout"),
+            ("Exceeded connection timeout %d/%d", timediffMS, ctimeout));
+        goto again;
       }
 
       status = srt_getsockstate (sock);
@@ -379,6 +400,7 @@ gst_srt_src_start (GstBaseSrc * src)
       GST_LOG_OBJECT (self, "SRT listener connected");
       break;
     }
+  again:
     // Always start over clean
     srt_epoll_remove_usock (pollid, sock);
     srt_close (sock);
@@ -435,6 +457,10 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
   GstSRTSrcPrivate *priv = GST_SRT_SRC_GET_PRIVATE (self);
   gint pollid = priv->poll_id;
 
+  gint ctimeout = -1;
+  gint ctimeoutlen;
+  gint64 starttime = -1;
+
   g_assert (pollid > 0);
 
   while (!priv->cancelled) {
@@ -473,10 +499,22 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
 
       priv->n_frames = 0;
 
+      starttime = g_get_monotonic_time ();
       sock = gst_srt_start_socket (GST_ELEMENT_CAST (self), &self->params);
       if (sock == SRT_INVALID_SOCK) {
         GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
             ("Creating SRT socket: %s", srt_getlasterror_str ()), (NULL));
+
+        return GST_FLOW_ERROR;
+      }
+
+      ctimeoutlen = sizeof (ctimeout);
+      if (srt_getsockopt (sock, 0, SRTO_CONNTIMEO, &ctimeout, &ctimeoutlen)) {
+        GST_ELEMENT_ERROR (self, RESOURCE, FAILED,
+            ("SRT getsockopt failed"),
+            ("failed to get SRTO_CONNTIMEO (reason: %s)",
+                srt_getlasterror_str ()));
+        srt_close (sock);
 
         return GST_FLOW_ERROR;
       }
@@ -491,6 +529,14 @@ gst_srt_src_fill (GstPushSrc * src, GstBuffer * outbuf)
         return GST_FLOW_ERROR;
       }
       priv->sock = sock;
+    } else if (status != SRTS_CONNECTED && starttime >= 0 && ctimeout >= 0) {
+      gint timediffMS = (gint) ((g_get_monotonic_time () - starttime) / 1000);
+      if (timediffMS >= ctimeout) {
+        GST_ELEMENT_WARNING (self, RESOURCE, FAILED, ("Connection timeout"),
+            ("Exceeded connection timeout %d/%d", timediffMS, ctimeout));
+        srt_close (sock);
+        continue;
+      }
     }
 
     g_assert (sock != SRT_INVALID_SOCK);
