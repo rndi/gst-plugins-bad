@@ -183,6 +183,7 @@ enum
   PROP_LATENCY,
   PROP_PASSPHRASE,
   PROP_KEY_LENGTH,
+  PROP_CONNTIMEO,
   PROP_MSS,
   PROP_SRT_SEND_BUF_SZ,
   PROP_SRT_RECV_BUF_SZ,
@@ -371,8 +372,6 @@ gst_srt_init_params_from_uri (const GstElement * elem,
   g_assert (elem != NULL);
   g_assert (uri != NULL);
 
-  gst_srt_default_params (params, params->sender);
-
   if (g_strcmp0 (gst_uri_get_scheme (uri), SRT_URI_SCHEME) != 0) {
     GST_ELEMENT_ERROR (elem, RESOURCE, SETTINGS,
         ("Invalid SRT URI scheme"), (NULL));
@@ -438,6 +437,11 @@ gst_srt_init_params_from_uri (const GstElement * elem,
           GST_ELEMENT_ERROR (elem, RESOURCE, SETTINGS,
               ("SRT URI key-length missing or invalid value"), (NULL));
           goto out;
+        }
+      } else if (!g_strcmp0 ((const gchar *) key, "conntimeo")) {
+        if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, INT_MAX,
+                &value64, &error)) {
+          params->connect_timeout = (gint) value64;
         }
       } else if (!g_strcmp0 ((const gchar *) key, "mss")) {
         if (g_ascii_string_to_signed ((const gchar *) value, 10, -1, INT_MAX,
@@ -575,6 +579,11 @@ gst_srt_install_properties (GObjectClass * gobject_class, gint offset)
           "Crypto key length in bits {0,128,192,256}", GST_TYPE_SRT_KEY_LENGTH,
           GST_SRT_NO_KEY, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
 
+  g_object_class_install_property (gobject_class, PROP_CONNTIMEO + offset,
+      g_param_spec_int ("conntimeo", "Connect timeout",
+          "Connect timeout value in milliseconds",
+          -1, G_MAXINT32, 0, G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+
   g_object_class_install_property (gobject_class, PROP_MSS + offset,
       g_param_spec_int ("mss", "MSS",
           "Maximum Segment Size",
@@ -665,6 +674,9 @@ gst_srt_get_property (const GstSRTParams * params,
     case PROP_KEY_LENGTH:
       g_value_set_enum (value, params->key_length);
       break;
+    case PROP_CONNTIMEO:
+      g_value_set_int (value, params->connect_timeout);
+      break;
     case PROP_MSS:
       g_value_set_int (value, params->mss);
       break;
@@ -744,6 +756,9 @@ gst_srt_set_property (GstSRTParams * params,
       break;
     case PROP_KEY_LENGTH:
       params->key_length = g_value_get_enum (value);
+      break;
+    case PROP_CONNTIMEO:
+      params->connect_timeout = g_value_get_int (value);
       break;
     case PROP_MSS:
       params->mss = g_value_get_int (value);
