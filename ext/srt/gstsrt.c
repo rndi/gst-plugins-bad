@@ -1093,24 +1093,30 @@ gst_srt_activate_socket (const GstElement * elem,
 
   if (params->conn_mode == GST_SRT_RENDEZVOUS_CONNECTION
       || params->conn_mode == GST_SRT_CALLER_CONNECTION) {
-    GSocketAddress *gsock_addr;
+    GSocketAddress *gsock_addr = NULL;
     gpointer sock_addr;
     gsize sock_addr_len;
+    GSocketConnectable *addrgs;
+    GSocketAddressEnumerator *enumgs;
 
-    gsock_addr =
-        g_inet_socket_address_new_from_string (params->remote_host,
-        params->remote_port);
+    addrgs = g_network_address_new (params->remote_host, params->remote_port);
+    enumgs = g_socket_connectable_enumerate (addrgs);
+    g_object_unref (addrgs);
 
-    if (gsock_addr == NULL) {
+    do {
+      if (gsock_addr)
+        g_clear_object (&gsock_addr);
+      gsock_addr = g_socket_address_enumerator_next (enumgs, NULL, &error);
+    } while (gsock_addr && (g_socket_address_get_family (gsock_addr)
+            != G_SOCKET_FAMILY_IPV4));
+
+    g_object_unref (enumgs);
+
+    if (!gsock_addr) {
       GST_ELEMENT_ERROR (elem, RESOURCE, OPEN_READ_WRITE,
-          ("Invalid remote host"), ("Failed to resolve remote host"));
-      goto failed;
-    }
-
-    if (g_socket_address_get_family (gsock_addr) != G_SOCKET_FAMILY_IPV4) {
-      GST_ELEMENT_ERROR (elem, RESOURCE, OPEN_READ_WRITE,
-          ("Invalid remote address"), ("SRT only supports IPv4 addresses"));
-      g_clear_object (&gsock_addr);
+          ("Failed to resolve remote host"),
+          ("%s", (error) ? error->message : ""));
+      g_clear_error (&error);
       goto failed;
     }
 
