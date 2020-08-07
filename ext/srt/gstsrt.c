@@ -892,7 +892,7 @@ gst_srt_create_socket (const GstElement * elem, const GstSRTParams * params)
 
   if (params->passphrase != NULL) {
     if (srt_setsockopt (sock, 0, SRTO_PASSPHRASE,
-            params->passphrase, strlen (params->passphrase) + 1)) {
+            params->passphrase, strlen (params->passphrase))) {
       GST_ELEMENT_ERROR (elem, LIBRARY, INIT,
           ("SRT setsockopt failed"),
           ("failed to set SRTO_PASSPHRASE (reason: %s)",
